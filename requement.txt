@@ -1,3 +1,8 @@
 streamlit
 google-generativeai
 python-dotnev
+Pillow
+opencv-python
+pytesseract
+PyMuPDF
+python-docx
