@@ -1,3 +1,5 @@
 streamlit
 google-generativeai
-python-dotnev
+Pillow
+PyMuPDF
+python-docx
