@@ -5,7 +5,8 @@
 <p>Explaining how the chatbot interacts with Google Generative AI API and presents the chat interface using Streamlit.</p>
 
 <!-- Diagram Section -->
-
+<h2>Live Demo>
+    https://chatbotgemini-by-shuvankar.streamlit.app/
 <h2>System Flow Diagram</h2>
 
 <!-- User Interface Image -->
