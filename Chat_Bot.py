@@ -31,7 +31,7 @@ with st.sidebar:
         except Exception as e:
             st.error(f"Error configuring API: {str(e)}")
 
-    st.link_button("Get Gemini API Key", "https://ai.google.dev/")
+    st.link_button("Get Gemini API Key", "https://aistudio.google.com/app/apikey")
 
     # Navigation
     st.subheader("Navigation")
@@ -45,8 +45,8 @@ with st.sidebar:
     # Source code link
     st.divider()
     st.subheader("About")
-    st.link_button("View Source Code", "https://github.com/your-repo")
-    st.link_button("Open in GitHub Codespaces", "https://github.com/your-repo")
+    st.link_button("View Source Code", "https://github.com/CodenesShuvankar/Chat_Bot_Gemini")
+    st.link_button("Open in GitHub Codespaces", "https://github.com/CodenesShuvankar/Chat_Bot_Gemini")
 
 
 # Main app functions
