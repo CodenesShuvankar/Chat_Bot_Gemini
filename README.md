@@ -12,7 +12,7 @@
 <!-- User Interface Image -->
 
 <h3>1. User Interface (Streamlit Input)</h3>
-<img src="iterface.png" alt="User Interface Input">
+<img src="interface.png" alt="User Interface Input">
 <p>The user enters a question in the Streamlit app.</p>
 
 
