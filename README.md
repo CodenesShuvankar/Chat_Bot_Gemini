@@ -19,6 +19,7 @@
 <!-- API Integration Image -->
 <h3>2. Google Generative AI API Integration</h3>
 <img src="flow.png" alt="API Integration">
+<a>Not Available </a>
 <p>The question is sent to Google Generative AI (Gemini Model) for processing.</p>
 
 <!-- Response and Chat History Image -->
