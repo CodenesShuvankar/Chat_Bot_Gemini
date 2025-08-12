@@ -5,6 +5,7 @@ import fitz  # PyMuPDF
 import docx
 import tempfile
 import os
+import json
 
 # Set page configuration
 st.set_page_config(page_title="Gemini Chatbot", page_icon="🤖", layout="wide")
@@ -37,7 +38,7 @@ with st.sidebar:
     st.subheader("Navigation")
     app_mode = st.radio(
         "Select Mode",
-        ["Chat", "File Q&A", "Chat with Search", "Langchain Quickstart",
+        ["Chat", "File Q&A", "Chat with Search", "Agentic AI", "Langchain Quickstart",
          "Langchain PromptTemplate", "Chat with Feedback"],
         index=0
     )
@@ -55,8 +56,51 @@ def chat_interface():
     st.caption("A conversational AI powered by Google Gemini")
 
     # Initialize chat history
+    def _load_chat_history():
+        try:
+            if os.path.exists("chat_history.json"):
+                with open("chat_history.json", "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return []
+
+    def _save_chat_history():
+        try:
+            with open("chat_history.json", "w", encoding="utf-8") as f:
+                json.dump(st.session_state.messages, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            st.warning(f"Couldn't save chat history: {e}")
+
     if "messages" not in st.session_state:
-        st.session_state.messages = []
+        st.session_state.messages = _load_chat_history()
+        # If API is configured, rebuild chat session from history
+        try:
+            if st.session_state.gemini_model and st.session_state.messages:
+                history = []
+                for m in st.session_state.messages:
+                    role = m.get("role")
+                    content = m.get("content", "")
+                    if role == "assistant":
+                        role = "model"
+                    history.append({"role": role, "parts": [content]})
+                st.session_state.chat_session = st.session_state.gemini_model.start_chat(history=history)
+        except Exception:
+            pass
+
+    # Controls
+    col_a, col_b = st.columns([1,1])
+    with col_a:
+        if st.button("Clear chat history"):
+            st.session_state.messages = []
+            _save_chat_history()
+            # Reset the underlying Gemini chat session as well
+            try:
+                if st.session_state.gemini_model:
+                    st.session_state.chat_session = st.session_state.gemini_model.start_chat(history=[])
+            except Exception:
+                pass
+            st.rerun()
 
     # Display chat messages
     for message in st.session_state.messages:
@@ -67,6 +111,7 @@ def chat_interface():
     if prompt := st.chat_input("Your message"):
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
+        _save_chat_history()
 
         # Display user message
         with st.chat_message("user"):
@@ -81,6 +126,7 @@ def chat_interface():
                     response = st.session_state.chat_session.send_message(prompt)
                     st.markdown(response.text)
                     st.session_state.messages.append({"role": "assistant", "content": response.text})
+                    _save_chat_history()
                 except Exception as e:
                     st.error(f"Error generating response: {str(e)}")
 
@@ -446,6 +492,320 @@ def chat_with_feedback():
                             msg["feedback"] = "negative"
                 except Exception as e:
                     st.error(f"Error generating response: {str(e)}")
+
+
+def agentic_ai_interface():
+    st.title("Agentic AI (Tools + Planning)")
+    st.caption("An agent that can plan and use tools: web search, calculator, and notes memory.")
+    import json as _json  # local alias to avoid analyzer scope issues
+
+    if not st.session_state.gemini_model:
+        st.warning("Please configure your Gemini API key in the sidebar first.")
+        return
+
+    # Tool toggles
+    with st.expander("Tools configuration"):
+        enable_search = st.checkbox("Enable Web Search", value=True)
+        enable_calc = st.checkbox("Enable Calculator", value=True)
+        enable_memory = st.checkbox("Enable Notes Memory", value=True)
+        max_steps = st.slider("Max reasoning/tool steps", 1, 6, 3)
+
+    # Session state for agent
+    if "agent_messages" not in st.session_state:
+        # Load previous agent history if exists
+        try:
+            if os.path.exists("agent_history.json"):
+                with open("agent_history.json", "r", encoding="utf-8") as f:
+                    st.session_state.agent_messages = _json.load(f)
+            else:
+                st.session_state.agent_messages = []
+        except Exception:
+            st.session_state.agent_messages = []
+
+    # Display conversation
+    for message in st.session_state.agent_messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    # Controls
+    colx, coly = st.columns([1,1])
+    with colx:
+        if st.button("Clear agent history"):
+            st.session_state.agent_messages = []
+            try:
+                with open("agent_history.json", "w", encoding="utf-8") as f:
+                    _json.dump([], f)
+            except Exception:
+                pass
+            st.rerun()
+
+    # Build tool declarations for function calling
+    def get_tool_declarations():
+        decls = []
+        if enable_search:
+            decls.append({
+                "name": "web_search",
+                "description": "Search the web for recent information and return a concise list of results.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string"},
+                        "max_results": {"type": "integer"}
+                    },
+                    "required": ["query"]
+                }
+            })
+        if enable_calc:
+            decls.append({
+                "name": "calculator",
+                "description": "Evaluate a basic math expression with + - * / ** // % and parentheses.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "expression": {"type": "string"}
+                    },
+                    "required": ["expression"]
+                }
+            })
+        if enable_memory:
+            decls.append({
+                "name": "write_note",
+                "description": "Store a short note by key for later recall.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "key": {"type": "string"},
+                        "content": {"type": "string"}
+                    },
+                    "required": ["key", "content"]
+                }
+            })
+            decls.append({
+                "name": "read_note",
+                "description": "Retrieve a previously stored note by key.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "key": {"type": "string"}
+                    },
+                    "required": ["key"]
+                }
+            })
+        return decls
+
+    # Whitelist of official music platforms to avoid copyright-violating links
+    MUSIC_WHITELIST = {
+        "youtube.com", "www.youtube.com", "music.youtube.com",
+        "open.spotify.com", "music.apple.com", "music.amazon.com",
+        "gaana.com", "www.jiosaavn.com", "wynk.in", "soundcloud.com"
+    }
+
+    # Detect intents that could lead to copyright infringement
+    def is_music_download_intent(text: str) -> bool:
+        t = (text or "").lower()
+        return ("download" in t or "mp3" in t) and ("song" in t or "music" in t)
+
+    def load_memory_file():
+        try:
+            import json
+            if os.path.exists("agent_memory.json"):
+                with open("agent_memory.json", "r", encoding="utf-8") as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return {}
+
+    def save_memory_file(data):
+        try:
+            import json
+            with open("agent_memory.json", "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            st.error(f"Failed saving memory: {e}")
+
+    def run_tool(name, args):
+        try:
+            if name == "web_search":
+                try:
+                    from ddgs import DDGS  # new package name
+                except Exception:
+                    from duckduckgo_search import DDGS  # fallback for older envs
+                from urllib.parse import urlparse
+                q = args.get("query", "")
+                n = int(args.get("max_results", 3) or 3)
+                results = []
+                with DDGS() as ddgs:
+                    for r in ddgs.text(q, max_results=n):
+                        url = r.get("href") or r.get("url")
+                        title = r.get("title")
+                        snippet = r.get("body") or r.get("snippet")
+                        # Filter suspicious direct file links or shady download sites
+                        try:
+                            parsed = urlparse(url)
+                            host = (parsed.netloc or "").lower()
+                            path = (parsed.path or "").lower()
+                            is_audio = any(path.endswith(ext) for ext in [
+                                ".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg"
+                            ])
+                            is_suspicious_download = ("download" in host or "download" in path)
+                            # If intent looks like music download, enforce whitelist
+                            if is_music_download_intent(q):
+                                if host not in MUSIC_WHITELIST:
+                                    continue
+                                if is_audio:
+                                    continue
+                            else:
+                                if is_audio and host not in MUSIC_WHITELIST:
+                                    continue
+                        except Exception:
+                            pass
+                        results.append({"title": title, "snippet": snippet, "url": url})
+                return {"results": results}
+            if name == "calculator":
+                import ast, operator as op
+                allowed_ops = {
+                    ast.Add: op.add, ast.Sub: op.sub, ast.Mult: op.mul, ast.Div: op.truediv,
+                    ast.Pow: op.pow, ast.Mod: op.mod, ast.FloorDiv: op.floordiv,
+                    ast.UAdd: op.pos, ast.USub: op.neg
+                }
+                def eval_(node):
+                    if isinstance(node, ast.Num):
+                        return node.n
+                    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+                        return node.value
+                    if isinstance(node, ast.BinOp) and type(node.op) in allowed_ops:
+                        return allowed_ops[type(node.op)](eval_(node.left), eval_(node.right))
+                    if isinstance(node, ast.UnaryOp) and type(node.op) in allowed_ops:
+                        return allowed_ops[type(node.op)](eval_(node.operand))
+                    raise ValueError("Unsupported expression")
+                expr = str(args.get("expression", "")).strip()
+                result = eval_(ast.parse(expr, mode="eval").body)
+                return {"result": result}
+            if name == "write_note":
+                store = load_memory_file()
+                key = str(args.get("key", "")).strip()
+                content = str(args.get("content", ""))
+                if not key:
+                    raise ValueError("key required")
+                store[key] = content
+                save_memory_file(store)
+                return {"ok": True}
+            if name == "read_note":
+                store = load_memory_file()
+                key = str(args.get("key", "")).strip()
+                return {"content": store.get(key)}
+        except Exception as e:
+            return {"error": str(e)}
+
+    # Run an agent loop using Gemini function calling if available, else fallback to a simple response
+    def run_agent(prompt_text: str):
+        # Build a fresh model with tool declarations
+        tools = [{"function_declarations": get_tool_declarations()}]
+        model = genai.GenerativeModel(
+            "gemini-2.0-flash",
+            tools=tools,
+            system_instruction=(
+                "You are an autonomous assistant that plans steps and uses tools when helpful. "
+                "Use prior conversation context; do not ask for info already given—infer from recent turns. "
+                "Think step-by-step. If a tool is useful, issue a single function_call with clear arguments. "
+                "After tool results return, synthesize a concise, direct answer for the user."
+            ),
+        )
+        # Build chat history from prior agent turns so follow-ups keep context
+        history = []
+        try:
+            prior = st.session_state.get("agent_messages", [])
+            # Use the last 12 messages to keep context bounded
+            for m in prior[-12:]:
+                role = m.get("role")
+                content = m.get("content", "")
+                if role == "assistant":
+                    role = "model"
+                history.append({"role": role, "parts": [content]})
+        except Exception:
+            history = []
+        chat = model.start_chat(history=history)
+
+        steps_taken = 0
+        final_answer = None
+        tool_trace = []
+
+        try:
+            response = chat.send_message(prompt_text)
+            while steps_taken < max_steps:
+                steps_taken += 1
+                # Inspect parts for function calls
+                parts = []
+                try:
+                    cand = response.candidates[0]
+                    parts = getattr(cand.content, "parts", []) or []
+                except Exception:
+                    parts = []
+
+                calls = []
+                for p in parts:
+                    fc = getattr(p, "function_call", None) or getattr(p, "functionCall", None)
+                    if fc:
+                        try:
+                            calls.append({
+                                "name": getattr(fc, "name", None),
+                                "args": dict(getattr(fc, "args", {}) or {})
+                            })
+                        except Exception:
+                            pass
+
+                if not calls:
+                    # No tool calls -> treat as final
+                    final_answer = getattr(response, "text", None) or ""
+                    break
+
+                # Execute at most one tool per step (first call)
+                call = calls[0]
+                result = run_tool(call.get("name"), call.get("args") or {})
+                tool_trace.append({"tool": call.get("name"), "args": call.get("args"), "result": result})
+
+                # Send tool result back
+                try:
+                    response = chat.send_message([
+                        {
+                            "function_response": {
+                                "name": call.get("name"),
+                                "response": result,
+                            }
+                        }
+                    ])
+                except Exception:
+                    # Fallback: append as plain text context
+                    response = chat.send_message(
+                        f"Tool {call.get('name')} result: {result}. Now provide the next step or final answer.")
+
+            if final_answer is None:
+                final_answer = getattr(response, "text", None) or ""
+
+        except Exception as e:
+            final_answer = f"Agent failed: {e}"
+            tool_trace.append({"error": str(e)})
+
+        return final_answer, tool_trace
+
+    # Chat input
+    if user_input := st.chat_input("Ask me to accomplish a task…"):
+        st.session_state.agent_messages.append({"role": "user", "content": user_input})
+
+        with st.chat_message("assistant"):
+            with st.spinner("Thinking and using tools…"):
+                answer, trace = run_agent(user_input)
+                st.markdown(answer)
+                if st.checkbox("Show tool trace"):
+                    import json
+                    st.code(json.dumps(trace, ensure_ascii=False, indent=2), language="json")
+
+        st.session_state.agent_messages.append({"role": "assistant", "content": answer})
+        try:
+            with open("agent_history.json", "w", encoding="utf-8") as f:
+                _json.dump(st.session_state.agent_messages, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
 
 
 # Main app router
