@@ -43,6 +43,38 @@ with st.sidebar:
         index=0
     )
 
+    # Privacy
+    st.divider()
+    st.subheader("Privacy")
+    auto_delete = st.checkbox(
+        "Auto-delete chat after session end (no disk save)",
+        value=True,
+        help="When enabled, conversations are not saved to disk and will be cleared when your session ends."
+    )
+    st.session_state.auto_delete = auto_delete
+    # If auto-delete is enabled, remove any old history files once per session
+    if auto_delete and not st.session_state.get("_auto_deleted_once"):
+        for p in ("chat_history.json", "agent_history.json"):
+            try:
+                if os.path.exists(p):
+                    os.remove(p)
+            except Exception:
+                pass
+        st.session_state._auto_deleted_once = True
+    if st.button("Delete saved histories now"):
+        removed = []
+        for p in ("chat_history.json", "agent_history.json"):
+            try:
+                if os.path.exists(p):
+                    os.remove(p)
+                    removed.append(p)
+            except Exception:
+                pass
+        if removed:
+            st.success(f"Deleted: {', '.join(removed)}")
+        else:
+            st.info("No saved histories found.")
+
     # Source code link
     st.divider()
     st.subheader("About")
@@ -58,6 +90,8 @@ def chat_interface():
     # Initialize chat history
     def _load_chat_history():
         try:
+            if st.session_state.get("auto_delete", True):
+                return []
             if os.path.exists("chat_history.json"):
                 with open("chat_history.json", "r", encoding="utf-8") as f:
                     return json.load(f)
@@ -67,6 +101,8 @@ def chat_interface():
 
     def _save_chat_history():
         try:
+            if st.session_state.get("auto_delete", True):
+                return
             with open("chat_history.json", "w", encoding="utf-8") as f:
                 json.dump(st.session_state.messages, f, ensure_ascii=False, indent=2)
         except Exception as e:
@@ -512,9 +548,9 @@ def agentic_ai_interface():
 
     # Session state for agent
     if "agent_messages" not in st.session_state:
-        # Load previous agent history if exists
+        # Load previous agent history if exists and persistence enabled
         try:
-            if os.path.exists("agent_history.json"):
+            if not st.session_state.get("auto_delete", True) and os.path.exists("agent_history.json"):
                 with open("agent_history.json", "r", encoding="utf-8") as f:
                     st.session_state.agent_messages = _json.load(f)
             else:
@@ -533,8 +569,9 @@ def agentic_ai_interface():
         if st.button("Clear agent history"):
             st.session_state.agent_messages = []
             try:
-                with open("agent_history.json", "w", encoding="utf-8") as f:
-                    _json.dump([], f)
+                if not st.session_state.get("auto_delete", True):
+                    with open("agent_history.json", "w", encoding="utf-8") as f:
+                        _json.dump([], f)
             except Exception:
                 pass
             st.rerun()
@@ -802,8 +839,9 @@ def agentic_ai_interface():
 
         st.session_state.agent_messages.append({"role": "assistant", "content": answer})
         try:
-            with open("agent_history.json", "w", encoding="utf-8") as f:
-                _json.dump(st.session_state.agent_messages, f, ensure_ascii=False, indent=2)
+            if not st.session_state.get("auto_delete", True):
+                with open("agent_history.json", "w", encoding="utf-8") as f:
+                    _json.dump(st.session_state.agent_messages, f, ensure_ascii=False, indent=2)
         except Exception:
             pass
 
