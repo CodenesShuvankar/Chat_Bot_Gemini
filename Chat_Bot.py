@@ -545,6 +545,11 @@ def agentic_ai_interface():
         enable_calc = st.checkbox("Enable Calculator", value=True)
         enable_memory = st.checkbox("Enable Notes Memory", value=True)
         max_steps = st.slider("Max reasoning/tool steps", 1, 6, 3)
+        force_search = st.checkbox(
+            "Force web search for next question",
+            value=False,
+            help="Runs web_search before answering so results appear in the tool trace."
+        )
 
     # Session state for agent
     if "agent_messages" not in st.session_state:
@@ -735,7 +740,7 @@ def agentic_ai_interface():
             return {"error": str(e)}
 
     # Run an agent loop using Gemini function calling if available, else fallback to a simple response
-    def run_agent(prompt_text: str):
+    def run_agent(prompt_text: str, force_search_flag: bool = False):
         # Build a fresh model with tool declarations
         tools = [{"function_declarations": get_tool_declarations()}]
         model = genai.GenerativeModel(
@@ -768,6 +773,16 @@ def agentic_ai_interface():
         tool_trace = []
 
         try:
+            # Optionally force a web search first so it always shows in trace
+            if force_search_flag and enable_search:
+                forced_args = {"query": prompt_text, "max_results": 3}
+                forced_result = run_tool("web_search", forced_args)
+                tool_trace.append({"tool": "web_search", "args": forced_args, "result": forced_result, "forced": True})
+                try:
+                    chat.send_message([{ "function_response": {"name": "web_search", "response": forced_result}}])
+                except Exception:
+                    pass
+
             response = chat.send_message(prompt_text)
             while steps_taken < max_steps:
                 steps_taken += 1
@@ -831,7 +846,7 @@ def agentic_ai_interface():
 
         with st.chat_message("assistant"):
             with st.spinner("Thinking and using tools…"):
-                answer, trace = run_agent(user_input)
+                answer, trace = run_agent(user_input, force_search_flag=force_search)
                 st.markdown(answer)
                 if st.checkbox("Show tool trace"):
                     import json
