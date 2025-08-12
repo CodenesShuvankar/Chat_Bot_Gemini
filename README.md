@@ -42,7 +42,8 @@ In the app sidebar, enter your Gemini API key and submit.
 - Agentic AI:
 	- Toggle tools (Web Search, Calculator, Memory) and set a max step budget
 	- Ask tasks like:
-		- “Find the latest NVIDIA earnings highlights and summarize in 5 bullets.”
+		- “Show official links to stream ‘Tujhe Dekha To Yeh Jana Sanam’ and the album/movie details.”
+		- “Summarize the song’s singers, composer, movie, year, and 2 lines about its cultural impact.”
 		- “What’s 12.5% of 3499, rounded, and store it under key ‘discount’.”
 		- “Recall the value of ‘discount’ and craft a sentence using it.”
 	- Tool trace can be shown to inspect calls and results
