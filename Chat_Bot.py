@@ -815,6 +815,8 @@ elif app_mode == "File Q&A":
     file_qa_interface()
 elif app_mode == "Chat with Search":
     chat_with_search_interface()
+elif app_mode == "Agentic AI":
+    agentic_ai_interface()
 elif app_mode == "Langchain Quickstart":
     langchain_quickstart()
 elif app_mode == "Langchain PromptTemplate":
