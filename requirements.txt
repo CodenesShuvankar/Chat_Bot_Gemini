@@ -3,3 +3,5 @@ google-generativeai
 Pillow
 PyMuPDF
 python-docx
+ddgs
+duckduckgo_search
