@@ -2,7 +2,7 @@
 
 A Streamlit app powered by Google Gemini for chat, file Q&A, web-augmented chat, LangChain demos, and a new Agentic AI mode that plans and uses tools (web search, calculator, and persistent notes memory).
 
-![UI](interface.png)
+![UI]()
 
 ## Features
 
