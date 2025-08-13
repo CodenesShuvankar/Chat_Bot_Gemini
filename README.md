@@ -1,8 +1,8 @@
 ## Gemini Chatbot (with Agentic AI)
 
 A Streamlit app powered by Google Gemini for chat, file Q&A, web-augmented chat, LangChain demos, and a new Agentic AI mode that plans and uses tools (web search, calculator, and persistent notes memory).
-
-![UI]()
+## Live link - https://chatbotgemini-by-shuvankar.streamlit.app/
+![UI](interface.png)
 
 ## Features
 
